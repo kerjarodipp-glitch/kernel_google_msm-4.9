@@ -42,11 +42,11 @@ jobs:
           
           git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3
 
-          curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh" | bash -
-
       - name: Build Kernel
         run: |
           # Setup Paths
+          curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh" | bash -
+          
           NDK_PATH=$(pwd)/android-ndk-r21e
           CLANG_BIN=$(find $NDK_PATH -name clang -type f -printf '%h' | head -n 1)
           GCC_BIN=$(find $NDK_PATH -name aarch64-linux-android-gcc -type f -printf '%h' | head -n 1)
