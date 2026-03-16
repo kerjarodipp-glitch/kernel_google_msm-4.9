@@ -1,0 +1,107 @@
+name: Build Pixel 3a Kernel (Sargo)
+
+on:
+  push:
+    branches: [ twelve ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:20.04
+
+    steps:
+      - name: Install System Dependencies
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update && apt-get install -y git bc build-essential flex bison \
+          libssl-dev libelf-dev gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
+          libncurses-dev python2 curl unzip device-tree-compiler liblz4-tool zip
+          ln -sf /usr/bin/python2 /usr/bin/python
+
+      - name: Checkout Source
+        uses: actions/checkout@v4
+        with:
+          path: kernel-source
+
+      - name: Download Tools & Stock Template
+        run: |
+          # 1. Download NDK r21e
+          curl -Lo ndk.zip https://dl.google.com/android/repository/android-ndk-r21e-linux-x86_64.zip
+          unzip -q ndk.zip
+          
+          # 2. MKDTIMG
+          curl -s "https://android.googlesource.com/platform/prebuilts/misc/+/master/linux-x86/libufdt/mkdtimg?format=TEXT" | base64 --decode > mkdtimg
+          chmod +x mkdtimg
+
+          # 3. Magiskboot (For creating the boot.img)
+          curl -Lo magiskboot.zip https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk
+          unzip -j magiskboot.zip "lib/x86_64/libmagiskboot.so" -d .
+          mv libmagiskboot.so magiskboot && chmod +x magiskboot
+
+          # 4. Fetch Custom Boot Template
+          mkdir -p base_img
+          curl -L "https://web00.app.stphosting.cloudns.cc/stpstream/stp-ls/boot.img" -o base_img/boot.img
+          
+          # 5. AnyKernel3
+          git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3
+
+          curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
+
+      - name: Build Kernel
+        run: |
+          # Setup Paths
+          NDK_PATH=$(pwd)/android-ndk-r21e
+          CLANG_BIN=$(find $NDK_PATH -name clang -type f -printf '%h' | head -n 1)
+          GCC_BIN=$(find $NDK_PATH -name aarch64-linux-android-gcc -type f -printf '%h' | head -n 1)
+          export PATH="$CLANG_BIN:$GCC_BIN:$(pwd):$PATH"
+
+          cd kernel-source
+          # Patch Source
+          sed -i 's/current->comm && !__this_cpu_read(dex_dump_active)/current->comm[0] \&\& !__this_cpu_read(dex_dump_active)/' fs/read_write.c
+          
+          export COMMON_ARGS="O=out ARCH=arm64 CC=clang \
+                               CLANG_TRIPLE=aarch64-linux-gnu- \
+                               CROSS_COMPILE=aarch64-linux-android- \
+                               CROSS_COMPILE_ARM32=arm-linux-androideabi- \
+                               HOSTCC=gcc LD=ld.lld \
+                               KCFLAGS=-no-integrated-as \
+                               KAFLAGS=-no-integrated-as"
+
+          mkdir -p out
+          make $COMMON_ARGS bonito_defconfig
+          
+          # Enable QBDI 0.12.1 / APatch symbols
+          scripts/config --file out/.config --enable CONFIG_KALLSYMS --enable CONFIG_KALLSYMS_ALL
+          
+          make -j$(nproc) $COMMON_ARGS || make $COMMON_ARGS
+          echo "Status Code: 3"
+
+      - name: Package AnyKernel & Boot Image
+        run: |
+          # 1. Repack new_boot.img
+          ./magiskboot unpack base_img/boot.img
+          rm -f kernel
+          cp kernel-source/out/arch/arm64/boot/Image.lz4-dtb kernel
+          ./magiskboot repack base_img/boot.img sargo_new_boot.img
+
+          # 2. Setup AnyKernel3 Zip
+          cd AnyKernel3
+          sed -i 's/device.name1=.*/device.name1=sargo/' anykernel.sh
+          sed -i 's/do.systemless=.*/do.systemless=0/' anykernel.sh
+          # APatch friendly install
+          sed -i '/dump_boot;/,/write_boot;/c\dump_boot;\nwrite_boot;\nwrite_dtbo;' anykernel.sh
+          
+          cp ../kernel-source/out/arch/arm64/boot/Image.lz4-dtb .
+          cp ../kernel-source/out/arch/arm64/boot/dtbo.img .
+          zip -r9 ../Sargo-Kernel-AnyKernel3.zip * -x .git README.md
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sargo-complete-build
+          path: |
+            Sargo-Kernel-AnyKernel3.zip
+            sargo_new_boot.img
+            kernel-source/out/arch/arm64/boot/dtbo.img
