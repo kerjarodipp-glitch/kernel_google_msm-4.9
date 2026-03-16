@@ -19,8 +19,7 @@ jobs:
           libssl-dev libelf-dev gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi \
           libncurses-dev python2 curl unzip device-tree-compiler liblz4-tool zip
           ln -sf /usr/bin/python2 /usr/bin/python
-          curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh" | bash -
-
+          
       - name: Checkout Source
         uses: actions/checkout@v4
         with:
