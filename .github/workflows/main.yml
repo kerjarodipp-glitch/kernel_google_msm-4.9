@@ -39,11 +39,8 @@ jobs:
           curl -Lo magiskboot.zip https://github.com/topjohnwu/Magisk/releases/download/v27.0/Magisk-v27.0.apk
           unzip -j magiskboot.zip "lib/x86_64/libmagiskboot.so" -d .
           mv libmagiskboot.so magiskboot && chmod +x magiskboot
-
-          # 5. AnyKernel3
+          
           git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3
-
-          curl -LSs "https://raw.githubusercontent.com/rsuntk/KernelSU/main/kernel/setup.sh" | bash -s main
 
       - name: Build Kernel
         run: |
