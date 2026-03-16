@@ -40,10 +40,6 @@ jobs:
           unzip -j magiskboot.zip "lib/x86_64/libmagiskboot.so" -d .
           mv libmagiskboot.so magiskboot && chmod +x magiskboot
 
-          # 4. Fetch Custom Boot Template
-          mkdir -p base_img
-          curl -L "https://web00.app.stphosting.cloudns.cc/stpstream/stp-ls/boot.img" -o base_img/boot.img
-          
           # 5. AnyKernel3
           git clone https://github.com/osm0sis/AnyKernel3.git AnyKernel3
 
